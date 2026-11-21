@@ -173,7 +173,8 @@ func run() int {
 	})
 
 	// Agent processes run as the executor identity, never as the server's root (see
-	// server/execpriv.go). An explicit option that cannot be applied stops the start.
+	// server/execpriv.go). Isolation failure always stops startup unless the
+	// operator explicitly opts out with -exec-uid=-1.
 	priv, err := server.ResolveExecPrivilege(*execUID, *execGID, flagWasSet("exec-uid") || flagWasSet("exec-gid"))
 	if err != nil {
 		log.Printf("[config] %v", err)
