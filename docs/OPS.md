@@ -27,6 +27,28 @@ record of the effective configuration: config path, DSN source and **redacted** 
 data/skill/key directories, listen address, proxy, noise profile, untrusted-output
 boundary and trusted proxies. No password or token value is ever logged there.
 
+### Agent process isolation when upgrading
+
+ARTEX now refuses to start when it determines that the agent process privilege drop
+is unavailable, even when you omit `-exec-uid` and `-exec-gid`. Earlier versions
+could log a warning and continue with child processes running as the server user.
+Look for `[config] agent process isolation cannot be applied` in the startup logs.
+
+This affects native Windows builds, non-root Linux and macOS installs (including
+local development and services), and container deployments that override the ARTEX
+process to run as a non-root user. The stock Compose deployment runs the server as
+root inside the container and drops child processes to UID/GID `10001:10001` by
+default. Custom deployments should verify before rollout that the runtime supports
+switching to the configured unprivileged UID and GID. Check startup logs and
+readiness using the same service identity and runtime settings as production.
+
+`-exec-uid=-1` is the explicit server startup flag that disables the privilege
+drop. With it, agent-launched processes inherit the server's identity and file
+access, including root privileges if the server runs as root. Review existing
+launch arguments for this flag before upgrading and keep the privilege drop enabled
+where the runtime supports it. The drop separates process identities. Network
+isolation and a filesystem sandbox require separate controls.
+
 ## 2. Configuration precedence
 
 | Setting | Resolution order | Code |
