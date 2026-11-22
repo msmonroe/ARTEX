@@ -31,8 +31,8 @@ const (
 const execDropArg = "__artex-exec-drop"
 
 // ExecPrivilege is the identity agent processes run under. The zero value is
-// disabled: children keep the server's identity, which is the state before this
-// change and is logged as such.
+// disabled: children keep the server's identity. Only an explicit negative
+// -exec-uid may disable the privilege drop in normal startup.
 type ExecPrivilege struct {
 	Enabled bool
 	UID     uint32
@@ -45,9 +45,10 @@ type ExecPrivilege struct {
 
 // ResolveExecPrivilege turns the -exec-uid and -exec-gid options into an
 // ExecPrivilege. A negative uid disables the drop explicitly. explicit reports
-// whether the operator set either option: an explicit drop that cannot be applied
-// is an error (fail closed), while the default degrades to a single log line.
+// whether the operator set either option. Both implicit and explicit requests
+// fail closed when isolation cannot be applied; only a negative uid opts out.
 func ResolveExecPrivilege(uid, gid int, explicit bool) (ExecPrivilege, error) {
+	_ = explicit // retained for callers; implicit requests also fail closed
 	if uid < 0 {
 		logExecOnce("[exec] agent processes keep the server's identity (-exec-uid=%d): no privilege drop", uid)
 		return ExecPrivilege{}, nil
@@ -57,22 +58,19 @@ func ResolveExecPrivilege(uid, gid int, explicit bool) (ExecPrivilege, error) {
 	}
 	p := ExecPrivilege{Enabled: true, UID: uint32(uid), GID: uint32(gid)}
 	if !execPrivilegeSupported() {
-		return p.unavailable(explicit, "the privilege drop is not supported on this platform")
+		return p.unavailable("the privilege drop is not supported on this platform")
 	}
 	if !serverIsRoot() {
-		return p.unavailable(explicit, "the server is not root, so it cannot start agent processes as another user")
+		return p.unavailable("the server is not root, so it cannot start agent processes as another user")
 	}
 	return p, nil
 }
 
-// unavailable answers a drop that cannot be applied: an error when the operator asked
-// for it, otherwise a disabled privilege with one log line that says so.
-func (p ExecPrivilege) unavailable(explicit bool, why string) (ExecPrivilege, error) {
-	if explicit {
-		return ExecPrivilege{}, fmt.Errorf("agent process isolation cannot be applied: %s", why)
-	}
-	logExecOnce("[exec] same-uid isolation unavailable: %s; agent processes run with the server's identity", why)
-	return ExecPrivilege{}, nil
+// unavailable always refuses to start when the configured isolation cannot be
+// enforced. Operators who knowingly accept same-identity execution must pass
+// -exec-uid=-1; the default must never silently lose its security boundary.
+func (p ExecPrivilege) unavailable(why string) (ExecPrivilege, error) {
+	return ExecPrivilege{}, fmt.Errorf("agent process isolation cannot be applied: %s (explicit opt-out: -exec-uid=-1)", why)
 }
 
 var execLogOnce sync.Map

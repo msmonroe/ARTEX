@@ -24,15 +24,14 @@ func TestResolveExecPrivilegeRefusesRootIdentity(t *testing.T) {
 	}
 }
 
-// Without root the drop cannot be applied: an explicit request is a startup error
-// (fail closed), the default degrades to a disabled privilege.
+// Without root the drop cannot be applied: both default and explicit requests
+// must fail closed rather than silently adopting the server's identity.
 func TestResolveExecPrivilegeWithoutRoot(t *testing.T) {
 	if serverIsRoot() && execPrivilegeSupported() {
 		t.Skip("needs a process that cannot switch identity")
 	}
-	p, err := ResolveExecPrivilege(DefaultExecUID, DefaultExecGID, false)
-	if err != nil || p.Enabled {
-		t.Fatalf("default request must degrade quietly: enabled=%v err=%v", p.Enabled, err)
+	if _, err := ResolveExecPrivilege(DefaultExecUID, DefaultExecGID, false); err == nil {
+		t.Fatal("default request must fail closed when identity switching is unavailable")
 	}
 	if _, err := ResolveExecPrivilege(DefaultExecUID, DefaultExecGID, true); err == nil {
 		t.Fatal("explicit request must fail closed")

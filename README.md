@@ -605,6 +605,10 @@ Daily cron example (03:20, operator crontab):
 > in its own transaction. Restarting the new binary is the upgrade. Back up `./data`, `keys/` and
 > the database before upgrading.
 
+Before restarting on a version with fail-closed agent process isolation, check the
+[process isolation upgrade guidance](docs/OPS.md#agent-process-isolation-when-upgrading),
+especially if you run ARTEX as a non-root user or use a native Windows build.
+
 **Update banner (opt-in, off by default)**: start ARTEX with `ARTEX_UPDATE_CHECK=1` to ask the
 public GitHub releases API for the latest tag, at most once per 24 hours (cached in memory; a
 failed check is not retried within that window). When the release is newer, the web UI shows a
